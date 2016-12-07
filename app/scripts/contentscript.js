@@ -1,6 +1,7 @@
 'use strict';
 
 import axios from 'axios'
+import colormap from 'colormap'
 
 class Analyse {
     constructor(video_id) {
@@ -83,14 +84,15 @@ analyser.vposes((vposes)=>{
         var cv = document.getElementById('comment-frequency-visualiser')
         const cv_width = seekbar.offsetWidth
         cv.style = `padding-left: -5px; margin: 0px; height: 50px`
-        cv.style.width = `${cv_width}px`
+        // cv.style.width = `${cv_width}px`
+        cv.style.width = `${624}px`
         var ctx = cv.getContext('2d')
+        const cm = colormap({colormap: 'freesurface-red', nshades: 255, format: 'rgbaString'})
 
         vposes.forEach((_, index) => {
             ctx.beginPath();
 
-            var color = 'rgb(' + 0 +',' + 255 * vposes[index][1] + ',' + 255 * vposes[index][1] + ')';
-            ctx.fillStyle = color
+            ctx.fillStyle = cm[Math.floor(vposes[index][1])]
 
             if (index === 0){
                 ctx.fillRect(0, 0, vposes[index][0] * cv_width, 200);

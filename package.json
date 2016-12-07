@@ -52,6 +52,7 @@
     "yargs": "5.x.x"
   },
   "dependencies": {
-    "axios": "^0.15.3"
+    "axios": "^0.15.3",
+    "colormap": "^2.2.0"
   }
 }
