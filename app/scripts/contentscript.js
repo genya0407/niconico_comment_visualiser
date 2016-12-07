@@ -24,22 +24,17 @@ class Analyse {
                           const vposes = Array.from(chats)
                                               .map((chat)=>{ return parseInt(chat.attributes.vpos.nodeValue) })
                                               .sort((a, b) => { return a - b })
-                                              .map((vpos) => { return vpos })
+                                              .map((vpos) => { return vpos + 100 })
                           callback(vposes)
                       })
              })
     }
 
     score(vp, t) {
-      if (this.sigma === undefined){
-          this.sigma = (Math.max.apply(null, vp) - Math.min.apply(null, vp)) / 1000
-      }
-      const sigma = this.sigma
-      return vp.map((ti) => {
-        return 1.0/(Math.sqrt(2*Math.PI*sigma))*Math.exp(-Math.pow((ti-t),2)/(2*Math.pow(sigma,2)))
-      }).reduce((prev, current) => {
-        return prev + current
-      })
+        const filtered_vp = vp.filter((vpose) => {
+            return (t - 200 < vpose && vpose <= t + 200)
+        })
+        return filtered_vp.length
     }
 
     stand_score(vposes) {
