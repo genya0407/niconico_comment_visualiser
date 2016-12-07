@@ -24,13 +24,17 @@ class Analyse {
                           const vposes = Array.from(chats)
                                               .map((chat)=>{ return parseInt(chat.attributes.vpos.nodeValue) })
                                               .sort((a, b) => { return a - b })
+                                              .map((vpos) => { return vpos })
                           callback(vposes)
                       })
              })
     }
 
     score(vp, t) {
-      const sigma = (Math.max.apply(null, vp) - Math.min.apply(null, vp)) / 30
+      if (this.sigma === undefined){
+          this.sigma = (Math.max.apply(null, vp) - Math.min.apply(null, vp)) / 1000
+      }
+      const sigma = this.sigma
       return vp.map((ti) => {
         return 1.0/(Math.sqrt(2*Math.PI*sigma))*Math.exp(-Math.pow((ti-t),2)/(2*Math.pow(sigma,2)))
       }).reduce((prev, current) => {
@@ -60,10 +64,10 @@ class Analyse {
                  var minutes = length_str.split(':')[0]
                  var seconds = length_str.split(':')[1]
                  var vpos_range = (parseInt(minutes) * 60 + parseInt(seconds)) * 100
-                 var vposes = _vposes.map((pt)=>{
+                 var vpose_score = _vposes.map((pt)=>{
                     return [pt[0] / vpos_range, pt[1]]
                  })
-                 callback(vposes)
+                 callback(vpose_score)
              })
     }
 }
@@ -82,22 +86,21 @@ analyser.vposes((vposes)=>{
         seekbarParent.insertBefore(elem, seekbar)
 
         var cv = document.getElementById('comment-frequency-visualiser')
-        const cv_width = seekbar.offsetWidth
+        const cv_width = 624 //seekbar.offsetWidth
         cv.style = `padding-left: -5px; margin: 0px; height: 50px`
-        // cv.style.width = `${cv_width}px`
-        cv.style.width = `${624}px`
+        cv.style.width = `${cv_width}px`
         var ctx = cv.getContext('2d')
-        const cm = colormap({colormap: 'freesurface-red', nshades: 255, format: 'rgbaString'})
+        const cm = colormap({colormap: 'greys', nshades: 255, format: 'rgbaString', opacity: 0})
 
         vposes.forEach((_, index) => {
             ctx.beginPath();
 
-            ctx.fillStyle = cm[Math.floor(vposes[index][1])]
+            ctx.fillStyle = 'rgb(255,255,255)'
 
             if (index === 0){
-                ctx.fillRect(0, 0, vposes[index][0] * cv_width, 200);
+                ctx.fillRect(0, 0, vposes[index][0] * cv_width, 200 * vposes[index][1]);
             } else {
-                ctx.fillRect(vposes[index - 1][0] * cv_width, 0, (vposes[index][0] - vposes[index - 1][0]) * cv_width, 200);
+                ctx.fillRect(vposes[index - 1][0] * cv_width, 0, (vposes[index][0] - vposes[index - 1][0]) * cv_width, 200 * vposes[index][1]);
             }
         })
     })

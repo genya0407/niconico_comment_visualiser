@@ -31,6 +31,7 @@
   ],
   "permissions": [
     "cookies",
+    "http://ext.nicovideo.jp/api/getthumbinfo/*",
     "http://www.nicovideo.jp/watch/*",
     "http://flapi.nicovideo.jp/api/getflv/*",
     "http://nmsg.nicovideo.jp/api/*"
