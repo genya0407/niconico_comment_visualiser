@@ -30,27 +30,7 @@ class Analyse {
              })
     }
 
-    score(vp, t) {
-        const filtered_vp = vp.filter((vpose) => {
-            return (t - 200 < vpose && vpose <= t + 200)
-        })
-        return filtered_vp.length
-    }
-
-    stand_score(vposes) {
-        const _scores = vposes.map((t) => {
-            return [t, this.score(vposes, t)]
-        })
-        const _min_score = Math.min.apply(null, _scores.map((pt) => { return pt[1] }))
-        const _max_score = Math.max.apply(null, _scores.map((pt) => { return pt[1] }))
-        const _score_range = _max_score - _min_score
-        const scores = _scores.map((sc) => {
-            return [sc[0], (sc[1] - _min_score) / _score_range]
-        })
-        return scores
-    }
-
-    stand_time(_vposes, callback) {
+    get_length(callback) {
         axios.get(`http:\/\/ext.nicovideo.jp/api/getthumbinfo/${this.video_id}`)
              .then((response) => {
                  var parser = new DOMParser()
@@ -58,21 +38,22 @@ class Analyse {
                                         .getElementsByTagName('length')[0].textContent
                  var minutes = length_str.split(':')[0]
                  var seconds = length_str.split(':')[1]
-                 var vpos_range = (parseInt(minutes) * 60 + parseInt(seconds)) * 100
-                 var vpose_score = _vposes.map((pt)=>{
-                    return [pt[0] / vpos_range, pt[1]]
-                 })
-                 callback(vpose_score)
+                 var video_length = (parseInt(minutes) * 60 + parseInt(seconds)) * 100
+                 callback(video_length)
              })
     }
+}
+
+function stand(arr) {
+    const max = Math.max.apply(null, arr)
+    return arr.map((elem) => { return elem / max })
 }
 
 var analyser = new Analyse(
         'sm' + window.location.href.match(/^http:\/\/www.nicovideo.jp\/watch\/sm(\d+)$/)[1]
         )
 analyser.vposes((vposes)=>{
-    var vposes = analyser.stand_score(vposes)
-    analyser.stand_time(vposes, (vposes) => {
+    analyser.get_length((video_length) => {
         var elem = document.createElement('canvas')
         elem.id = 'comment-frequency-visualiser'
         const seekbar = document.getElementsByClassName('SeekBar')[0]
@@ -82,22 +63,28 @@ analyser.vposes((vposes)=>{
 
         var cv = document.getElementById('comment-frequency-visualiser')
         const cv_width = 624 //seekbar.offsetWidth
-        cv.style = `padding-left: -5px; margin: 0px; height: 50px`
+        cv.style = `height: 50px`
         cv.style.width = `${cv_width}px`
         var ctx = cv.getContext('2d')
-        const cm = colormap({colormap: 'greys', nshades: 255, format: 'rgbaString', opacity: 0})
 
-        vposes.forEach((_, index) => {
+        const resolution = 300.0
+        var scores = []
+        for(var i = 0; i < resolution; i++){
+            const score = vposes.filter((vpose) => {
+                return ( i * (video_length / resolution) < vpose && vpose <= (i+1)*(video_length / resolution) )
+            }).length
+            scores.push(score)
+        }
+        scores = stand(scores)
+        console.log(Math.max.apply(null, scores))
+        for(var i = 0; i < resolution; i++){
             ctx.beginPath();
-
             ctx.fillStyle = 'rgb(255,255,255)'
-
-            if (index === 0){
-                ctx.fillRect(0, 0, vposes[index][0] * cv_width, 200 * vposes[index][1]);
-            } else {
-                ctx.fillRect(vposes[index - 1][0] * cv_width, 0, (vposes[index][0] - vposes[index - 1][0]) * cv_width, 200 * vposes[index][1]);
-            }
-        })
+            ctx.fillRect(i * cv_width / resolution,
+                         0,
+                         cv_width / resolution,
+                         scores[i] * 200)
+        }
     })
 })
 
