@@ -1,37 +1,45 @@
 'use strict';
 
 import axios from 'axios'
-import colormap from 'colormap'
 
-class Analyse {
-    constructor(video_id) {
-        this.video_id = video_id
-    }
+// metadata: { thread_id: '12345', user_id: '1234555' }
+// video_idを取って、{thread_id, user_id}を渡すPromiseを返す
+function get_video_metadata(video_id) {
+    return new Promise(function(resolve) {
+        axios.get('http://flapi.nicovideo.jp/api/getflv/' + video_id).then((response) => {
+            const data_arr = response.data.split('&').map((row)=>{ return row.split('=') })
+            const thread_id = data_arr.find((row)=>{ return row[0] === 'thread_id'})[1]
+            const user_id = data_arr.find((row)=>{ return row[0] === 'user_id'})[1]
 
-    vposes(callback) {
-        axios.get('http://flapi.nicovideo.jp/api/getflv/' + this.video_id)
-             .then((response) => {
-                 const data_arr = response.data.split('&').map((row)=>{ return row.split('=') })
-                 const thread_id = data_arr.find((row)=>{ return row[0] === 'thread_id'})[1]
-                 const user_id = data_arr.find((row)=>{ return row[0] === 'user_id'})[1]
+            resolve({thread_id, user_id})
+        })
+    })
+}
 
-                 const xml = `<thread thread="${thread_id}" version="20090904" res_from='-1000' user_id='${user_id}' />`
-                 axios.post('http://nmsg.nicovideo.jp/api', xml, { headers: { 'Content-Type': 'application/xml' }})
-                      .then((response) => {
-                          var parser = new DOMParser()
-                          const chats = parser.parseFromString(response.data, 'text/xml')
-                                              .getElementsByTagName('chat')
-                          const vposes = Array.from(chats)
-                                              .map((chat)=>{ return parseInt(chat.attributes.vpos.nodeValue) })
-                                              .sort((a, b) => { return a - b })
-                                              .map((vpos) => { return vpos })
-                          callback(vposes)
-                      })
-             })
-    }
+// video_metadata: { thread_id, user_id }
+// vposes: [10000, 30000, 40000, ...]
+// video_metadataを取って、vposesを渡すPromiseを返す
+function get_vposes(video_metadata) {
+    return new Promise(function(resolve) {
+        const xml = `<thread thread="${video_metadata.thread_id}" version="20090904" res_from='-1000' user_id='${video_metadata.user_id}' />`
+        axios.post('http://nmsg.nicovideo.jp/api', xml, { headers: { 'Content-Type': 'application/xml' }}).then((response) => {
+            var parser = new DOMParser()
+            const chats = parser.parseFromString(response.data, 'text/xml').getElementsByTagName('chat')
+            const vposes = Array.from(chats)
+                                .map((chat)=>{ return parseInt(chat.attributes.vpos.nodeValue) })
+                                .sort((a, b) => { return a - b })
+                                .map((vpos) => { return vpos })
+            resolve(vposes)
+        })
+    })
+}
 
-    get_length(callback) {
-        axios.get(`http:\/\/ext.nicovideo.jp/api/getthumbinfo/${this.video_id}`)
+// video_id: 'sm9999'
+// video_length: 123455
+// video_idを取って、vposes単位の動画の長さを渡すPromiseを返す
+function get_video_length(video_id) {
+    return new Promise(function(resolve) {
+        axios.get(`http:\/\/ext.nicovideo.jp/api/getthumbinfo/${video_id}`)
              .then((response) => {
                  var parser = new DOMParser()
                  var length_str = parser.parseFromString(response.data, 'text/xml')
@@ -39,56 +47,63 @@ class Analyse {
                  var minutes = length_str.split(':')[0]
                  var seconds = length_str.split(':')[1]
                  var video_length = (parseInt(minutes) * 60 + parseInt(seconds)) * 100
-                 callback(video_length)
+                 resolve(video_length)
              })
-    }
+    })
+}
+
+// Arrayを引数にとり、要素を0から1の範囲に正規化したArrayを返す
+function stand(arr) {
+    const max = Math.max.apply(null, arr)
+    return arr.map((elem) => { return elem / max })
 }
 
 function main() {
-    function stand(arr) {
-        const max = Math.max.apply(null, arr)
-        return arr.map((elem) => { return elem / max })
-    }
+    const video_id = 'sm' + window.location.href.match(/^http:\/\/www.nicovideo.jp\/watch\/sm(\d+)$/)[1]
+    Promise.all([
+            get_video_metadata(video_id).then(get_vposes),
+            get_video_length(video_id)
+    ]).then((values)=>{
+        const vposes = values[0]
+        const video_length = values[1]
 
-    var analyser = new Analyse(
-            'sm' + window.location.href.match(/^http:\/\/www.nicovideo.jp\/watch\/sm(\d+)$/)[1]
-            )
+        var elem = document.createElement('canvas')
+        elem.id = 'comment-frequency-visualiser'
+        const seekbar = document.getElementsByClassName('SeekBar')[0]
+                                .nextElementSibling
+        const seekbarParent = seekbar.parentNode
+        seekbarParent.insertBefore(elem, seekbar)
+
+        var cv = document.getElementById('comment-frequency-visualiser')
+        const cv_width = 624 //seekbar.offsetWidth
+        cv.height = 100
+        cv.width = cv_width
+        var ctx = cv.getContext('2d')
+
+        const resolution = 300.0
+        var scores = []
+        for(var i = 0; i < resolution; i++){
+            const score = vposes.filter((vpose) => {
+                return ( i * (video_length / resolution) < vpose && vpose <= (i+1)*(video_length / resolution) )
+            }).length
+            scores.push(score)
+        }
+        scores = stand(scores)
+        for(var i = 0; i < resolution; i++) {
+            ctx.beginPath();
+            ctx.fillStyle = 'rgb(255,255,255)'
+            ctx.fillRect(i * (cv_width / resolution),
+                         0,
+                         cv_width / resolution,
+                         scores[i] * 100)
+        }
+    })
+}
+/*
     analyser.vposes((vposes)=>{
         analyser.get_length((video_length) => {
-            var elem = document.createElement('canvas')
-            elem.id = 'comment-frequency-visualiser'
-            const seekbar = document.getElementsByClassName('SeekBar')[0]
-                                    .nextElementSibling
-            const seekbarParent = seekbar.parentNode
-            seekbarParent.insertBefore(elem, seekbar)
-
-            var cv = document.getElementById('comment-frequency-visualiser')
-            const cv_width = 624 //seekbar.offsetWidth
-            cv.height = 100
-            cv.width = cv_width
-            var ctx = cv.getContext('2d')
-
-            const resolution = 300.0
-            var scores = []
-            for(var i = 0; i < resolution; i++){
-                const score = vposes.filter((vpose) => {
-                    return ( i * (video_length / resolution) < vpose && vpose <= (i+1)*(video_length / resolution) )
-                }).length
-                scores.push(score)
-            }
-            scores = stand(scores)
-            for(var i = 0; i < resolution; i++) {
-                ctx.beginPath();
-                ctx.fillStyle = 'rgb(255,255,255)'
-                ctx.fillRect(i * (cv_width / resolution),
-                             0,
-                             cv_width / resolution,
-                             scores[i] * 100)
-            }
-        })
     })
-
-}
+*/
 
 chrome.extension.onMessage.addListener(function(request) {
     if (request.type === 'reloadCommentGraph') {
