@@ -28,7 +28,6 @@ function get_vposes(video_metadata) {
             const vposes = Array.from(chats)
                                 .map((chat)=>{ return parseInt(chat.attributes.vpos.nodeValue) })
                                 .sort((a, b) => { return a - b })
-                                .map((vpos) => { return vpos })
             resolve(vposes)
         })
     })
@@ -99,11 +98,6 @@ function main() {
         }
     })
 }
-/*
-    analyser.vposes((vposes)=>{
-        analyser.get_length((video_length) => {
-    })
-*/
 
 chrome.extension.onMessage.addListener(function(request) {
     if (request.type === 'reloadCommentGraph') {
