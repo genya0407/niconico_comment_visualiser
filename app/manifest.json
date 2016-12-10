@@ -34,6 +34,10 @@
     "http://ext.nicovideo.jp/api/getthumbinfo/*",
     "http://www.nicovideo.jp/watch/*",
     "http://flapi.nicovideo.jp/api/getflv/*",
-    "http://nmsg.nicovideo.jp/api/*"
-  ]
+    "http://nmsg.nicovideo.jp/api/*",
+    "tabs"
+  ],
+  "browser_action": {
+    "name": "reload comment graph"
+  }
 }

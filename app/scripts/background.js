@@ -1,9 +1,9 @@
 // Enable chromereload by uncommenting this line:
 // import 'chromereload/devonly';
-
-chrome.runtime.onMessage.addListener(function(request, sender, sendResponse){
-    chrome.cookies.get({name: 'user_session', url: request.url}, function(cookie){
-        sendResponse(cookie.value)
+chrome.browserAction.onClicked.addListener( function(){
+    chrome.tabs.getSelected(null, function(tab) {
+        if (tab.url.match('http://www.nicovideo.jp/watch') !== null) {
+            chrome.tabs.sendMessage(tab.id, {type: 'reloadCommentGraph'})
+        }
     })
-    return true
-})
+});
