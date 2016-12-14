@@ -51,6 +51,60 @@ function get_video_length(video_id) {
     })
 }
 
+function get_ad_length(video_id){
+    return new Promise(function(resolve){
+        axios.get(`http:\/\/api.uad.nicovideo.jp/UadsVideoService/getAdvertisingJsonp?videoid=${video_id}`)
+             .then((response) => {
+                const data = JSON.parse(response.data.match(/callback\((.+)\);/)[1])
+                if (data[0].adflg === 1) {
+                    resolve(10 * 100)
+                } else {
+                    resolve(0)
+                }
+             })
+    })
+}
+
+function get_scores(vposes, seekbar_length) {
+    return new Promise((resolve) => {
+        const resolution = 300.0
+        var scores = []
+        for(var i = 0; i < resolution; i++){
+            const score = vposes.filter((vpose) => {
+                return ( i * (seekbar_length / resolution) < vpose && vpose <= (i+1)*(seekbar_length / resolution) )
+            }).length
+            scores.push(score)
+        }
+        scores = stand(scores)
+        resolve(scores)
+    })
+}
+
+function get_graph_canvas(scores, seekbar_width_ratio) {
+    return new Promise((resolve) => {
+        const resolution = scores.length
+        const cv_width = document.getElementsByClassName('XSlider')[0].clientWidth
+        const cv_height = 50
+
+        var cv = document.createElement('canvas')
+        cv.id = 'comment-frequency-visualiser'
+        cv.height = cv_height
+        cv.width = cv_width * seekbar_width_ratio
+        var ctx = cv.getContext('2d')
+
+        for(var i = 0; i < resolution; i++) {
+            ctx.beginPath();
+            ctx.fillStyle = 'rgb(255,255,255)'
+            ctx.fillRect(i * (cv_width / resolution),
+                         0,
+                         cv_width / resolution,
+                         scores[i] * cv_height)
+        }
+
+        resolve(cv)
+    })
+}
+
 // Arrayを引数にとり、要素を0から1の範囲に正規化したArrayを返す
 function stand(arr) {
     const max = Math.max.apply(null, arr)
@@ -61,40 +115,21 @@ function main() {
     const video_id = 'sm' + window.location.href.match(/^http:\/\/www.nicovideo.jp\/watch\/sm(\d+)$/)[1]
     Promise.all([
             get_video_metadata(video_id).then(get_vposes),
-            get_video_length(video_id)
+            get_video_length(video_id),
+            get_ad_length(video_id)
     ]).then((values)=>{
         const vposes = values[0]
         const video_length = values[1]
+        const seekbar_width_ratio = values[1] / (values[1] + values[2])
 
-        var cv = document.createElement('canvas')
-        cv.id = 'comment-frequency-visualiser'
-        const cv_width = document.getElementsByClassName('XSlider')[0].clientWidth
-        cv.height = 100
-        cv.width = cv_width
-        var ctx = cv.getContext('2d')
-
-        const resolution = 300.0
-        var scores = []
-        for(var i = 0; i < resolution; i++){
-            const score = vposes.filter((vpose) => {
-                return ( i * (video_length / resolution) < vpose && vpose <= (i+1)*(video_length / resolution) )
-            }).length
-            scores.push(score)
-        }
-        scores = stand(scores)
-        for(var i = 0; i < resolution; i++) {
-            ctx.beginPath();
-            ctx.fillStyle = 'rgb(255,255,255)'
-            ctx.fillRect(i * (cv_width / resolution),
-                         0,
-                         cv_width / resolution,
-                         scores[i] * 100)
-        }
-
-        const seekbar = document.getElementsByClassName('SeekBar')[0]
-                                .nextElementSibling
-        const seekbarParent = seekbar.parentNode
-        seekbarParent.insertBefore(cv, seekbar)
+        get_scores(vposes, video_length).then((scores) => {
+            return get_graph_canvas(scores, seekbar_width_ratio)
+        }).then((cv) => {
+            const seekbar = document.getElementsByClassName('SeekBar')[0]
+                                    .nextElementSibling
+            const seekbarParent = seekbar.parentNode
+            seekbarParent.insertBefore(cv, seekbar)
+        })
     })
 }
 
